@@ -1,0 +1,89 @@
+import { Hono } from "hono";
+import {PrismaClient} from '@prisma/client/edge'
+import { withAccelerate } from '@prisma/extension-accelerate'
+import {decode,sign,verify} from 'hono/jwt'
+
+
+
+
+export const UserRoute= new Hono<{
+    Bindings:{
+      DATABASE_URL:string;
+      JWT_SECRET: string;
+    }}>();
+
+    UserRoute.post('/signup', async (c) => {
+        try {
+          const body = await c.req.json();
+          console.log('Request Body:', body); // Log the body for debugging
+      
+          const prisma = new PrismaClient({
+            datasources: {
+              db: {
+                url: c.env.DATABASE_URL,
+              },
+            },
+          }).$extends(withAccelerate());
+      
+          const user = await prisma.user.create({
+            data: {
+              username: body.username,
+              password: body.password,
+              name: body.name,
+            },
+          });
+      
+          const jwt = await sign(
+            { id: user.id },
+            c.env.JWT_SECRET
+          );
+      
+          return c.text(jwt);
+        } catch (e) {
+          c.status(403);
+          console.error(e);
+          return c.text('Invalid');
+        } 
+      });
+      
+    
+    
+    
+      UserRoute.post('/signin', async(c) => {
+       try {
+          const body = await c.req.json();
+          console.log('Request Body:', body); // Log the body for debugging
+      
+          const prisma = new PrismaClient({
+            datasources: {
+              db: {
+                url: c.env.DATABASE_URL,
+              },
+            },
+          }).$extends(withAccelerate());
+      
+          const user= await prisma.user.findFirst({
+            where: {
+              username: body.username,
+              password: body.password,
+              // name:body.name
+             
+            }
+          });
+    
+          if(!user){
+            c.status(403);
+            return c.json({message:"INvalid auth"});
+          }
+          const jwt = await sign(
+            { id: user.id },
+            c.env.JWT_SECRET
+          );
+      
+          return c.text(jwt);
+        } catch (e) {
+          c.status(403);
+          console.error(e);
+          return c.text('Invalid');
+        } 
+    })   
